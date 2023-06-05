@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Граф</title>
+	<script src="./client/cytoscape.min.js"></script>
+	<style>
+		#graphContainer {
+			height: 500px;
+			width: 800px;
+			margin: 20px auto;
+			position: relative;
+			border: 1px solid #ccc;
+			overflow: hidden;
+		}
+	</style>
+</head>
+
+<body>
+	<div id="graphContainer"></div>
+	<!-- Форма для ОТПРАВКИ графа -->
+	<button id="save-button">Сохранить и отправить граф</button>
+	<!-- Блок для отображения результата -->
+	<div id="result"></div>
+	<script>
+		const resultElement = document.getElementById('result');
+		const graphContainer =  document.getElementById('graphContainer')
+		// Создание экземпляра Cytoscape
+		const cy = cytoscape({
+			container: graphContainer,
+			style: [
+				{
+					selector: 'node',
+					style: {
+						'background-color': '#666',
+						'label': 'data(id)'
+
+					}
+				},
+				{
+					selector: 'edge',
+					style: {
+						'width': 3,
+						'line-color': '#ccc',
+						'target-arrow-color': '#ccc',
+						'target-arrow-shape': 'triangle'
+					}
+				},
+				{
+					selector: 'node.right',
+					style: {
+						'background-color': 'blue'
+					}
+				},
+				{
+					selector: 'node.left',
+					style: {
+						'background-color': 'red'
+					}
+				}
+			],
+			layout: {
+				name: 'grid'
+			}
+		});
+
+		let selectedNode = null; // Хранит выбранную вершину
+
+		// Обработчик события для создания новой вершины по клику
+		function handleGraphClick(event) {
+			if (event.target === cy) {
+				const nodeID = cy.nodes().length; // Генерация ID вершины
+				const position = event.position || event.cyPosition; // Получение позиции клика
+				const group = cy.nodes().length % 2 === 0 ? 'right' : 'left';// Определение доли вершины
+
+				// Создание новой вершины и добавление ее в граф на указанной позиции
+				const newNode = { data: { id: nodeID, group }, position };
+				cy.add(newNode);
+			}
+		}
+
+		// Обработчик события для создания нового ребра по клику
+		function handleNodeClick(event) {
+			const clickedNode = event.target;
+
+			if (selectedNode === null) {
+				// Если исходная вершина не выбрана, то выбираем ее
+				selectedNode = clickedNode;
+				selectedNode.style('border-color', 'red');
+			} else if (selectedNode.id() !== clickedNode.id()) {
+				// Если выбрана исходная вершина и она не равна кликнутой вершине, то создаем ребро
+				const sourceNodeID = selectedNode.id();
+				const targetNodeID = clickedNode.id();
+
+				// Создание нового ребра между исходной и кликнутой вершинами
+				const newEdge = { data: { source: sourceNodeID, target: targetNodeID } };
+				cy.add(newEdge);
+
+				// Сброс выбранной вершины
+				selectedNode.style('border-color', '#666');
+				selectedNode = null;
+			}
+		}
+
+		// Добавление обработчика события на клик по графу
+		cy.on('tap', handleGraphClick);
+
+		// Добавление обработчика события на клик по вершине
+		cy.on('cxttap', 'node', handleNodeClick);
+
+		///////////////////////////
+
+		// Обработчик события для сохранения и отправки графа на сервер
+		function handleSaveGraph() {
+			// Получение данных о графе в формате JSON
+			const graphData = cy.json();
+
+			fetch('/graph', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify(graphData)
+			})
+				.then(response => response.json())
+				.then(data => {
+					// Получаем максимальное паросочетание из ответа сервера
+					const maxMatching = data.maxMatching;
+					// Отображаем результат в блоке result
+					resultElement.textContent = `Максимальное паросочетание(количество ребер): ${maxMatching}`;
+					console.log('Максимальное паросочетание:', maxMatching);
+				})
+				.catch(error => {
+					console.error('Ошибка при отправке запроса:', error);
+				});
+		}
+
+		// Назначение обработчика события на клик по кнопке сохранения и отправки графа
+		document.getElementById('save-button').addEventListener('click', handleSaveGraph);		
+
+	</script>
+</body>
+
+</html>
